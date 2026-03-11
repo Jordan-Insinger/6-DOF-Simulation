@@ -1,129 +1,137 @@
-import math
+import matplotlib.pyplot as plt
 import numpy as np
+import math
 
-def flat_earth_eom(t, x, aircraft_model):
-    '''
-    Arguments:
-        t: time [s]
-        x: state vector at time t (numpy array)
-            x[0] = u_b_ms
-            x[1] = v_b_ms
-            x[2] = w_b_ms
-            x[3] = p_b_rads
-            x[4] = q_b_rads
-            x[5] = r_b_rads
-            x[6] = phi_rad
-            x[7] = theta_rad
-            x[8] = psi_rad
-            x[9] = x_n_m
-            x[10] = y_n_m
-            x[11] = z_n_m
-        aircraft_model: model data stored as a dictionary containing parameters
-
-    Returns:
-        dx: time derivative of state vector
-    '''
-    
-    dx = np.array((12, 1))
-
-    u_b_ms = x[0] 
-    v_b_ms = x[1] 
-    w_b_ms = x[2] 
-    p_b_rads = x[3] 
-    q_b_rads = x[4] 
-    r_b_rads = x[5] 
-    phi_rad = x[6] 
-    theta_rad = x[7] 
-    psi_rad = x[8] 
-    x_n_m = x[9] 
-    y_n_m = x[10]
-    z_n_m = x[11]
-
-    # get mass and moments of inertia 
-    m_kg = aircraft_model([m_kg])
-    Jxx_b_kgm2 = aircraft_model([Jxx_b_kgm2])
-    Jxz_b_kgm2 = aircraft_model([Jxz_b_kgm2])
-    Jyy_b_kgm2 = aircraft_model([Jyy_b_kgm2])
-    Jzz_b_kgm2 = aircraft_model([Jzz_b_kgm2])
-
-    # TODO: air data calculation(Mach, altitude, AoA, AoS)
-
-    # TODO: atmosphere model
-
-    # gravity
-    gz_n_mps2 = 9.81
-
-    # gravity (body-fixed)
-    gx_b_mps2 = -math.sin(theta_rad) * gz_n_mps2
-    gy_b_mps2 = math.sin(phi_rad) * math.cos(theta_rad) * gz_n_mps2
-    gz_b_mps2 = math.cos(psi_rad) * math.cos(theta_rad) * gz_n_mps2
-
-    # TODO: external forces
-    Fx_b_kgmps2 = []
-    Fy_b_kgmps2 = []
-    Fz_b_kgmps2 = []
-
-    # TODO: external moments
-    l_b_kgm2ps2 = []
-    m_b_kgm2ps2 = []
-    n_b_kgm2ps2 = []
-
-    # Denominator for rpy equations
-    denom = Jxx_b_kgm2 * Jzz_b_kgm2 - Jxz_b_kgm2**2
+from numerical_integrators import numerical_integration_methods
+from governing_equations import flat_earth_eom
 
 
-    # compute dx
+# vehicle
+r_sphere_m = 0.08
+m_sphere_kg = 5
+J_sphere_kgm2 = 0.4 * m_sphere_kg * r_sphere_m**2
 
-    #udot
-    dx[0] = (1 / m_kg * Fx_b_kgmps2 
-             + gx_b_mps2
-             - w_b_ms * q_b_rads
-             + v_b_ms * r_b_rads)
-    #vdot 
-    dx[1] = (1 / m_kg * Fy_b_kgmps2
-             + gy_b_mps2
-             - u_b_ms * r_b_rads
-             + w_b_ms * p_b_rads)
-    #wdot
-    dx[2] = (1 / m_kg * Fz_b_kgmps2
-             + gz_b_mps2
-             - v_b_ms * p_b_rads
-             + u_b_ms * q_b_rads)
-    #pdot
-    dx[3] = ((Jxz_b_kgm2 * (Jxx_b_kgm2 - Jyy_b_kgm2 + Jzz_b_kgm2)
-                        * p_b_rads*q_b_rads)
-             - (Jzz_b_kgm2 * (Jzz_b_kgm2 - Jyy_b_kgm2) + Jxz_b_kgm2**2)
-             + (Jzz_b_kgm2 * l_b_kgm2ps2)
-             + (Jxz_b_kgm2 * n_b_kgm2ps2)) / denom
-    #qdot
-    dx[4] = ((Jzz_b_kgm2 - Jxx_b_kgm2)* r_b_rads* p_b_rads
-             - Jxz_b_kgm2 * (p_b_rads**2 - r_b_rads**2) + m_b_kgm2ps2) / Jyy_b_kgm2
+# dectionary
+amod = {
+    "m_kg" : 1, 
+    "Jxz_b_kgm2": 0,
+    "Jxx_b_kgm2": J_sphere_kgm2,
+    "Jyy_b_kgm2": J_sphere_kgm2,
+    "Jzz_b_kgm2": J_sphere_kgm2
+}
 
-    #rdot
-    dx[5] = (-Jxz_b_kgm2 * (Jxx_b_kgm2 - Jyy_b_kgm2 + Jzz_b_kgm2) * q_b_rads * r_b_rads
-             + (Jxx_b_kgm2 * (Jxx_b_kgm2 - Jyy_b_kgm2) + Jxz_b_kgm2**2) * p_b_rads * q_b_rads
-             + Jxz_b_kgm2 * l_b_kgm2ps2
-             + Jxx_b_kgm2 * n_b_kgm2ps2) / denom
-    # TODO: Kinematics equations 
-    dx[6] = []
-    dx[7] = []
-    dx[8] = []
-    # TODO: Position (navigation equations)
-    dx[9] = []
-    dx[10] = []
-    dx[11] = []
+# initialization
+u0_bf_mps = 0
+v0_bf_mps = 0
+w0_vf_mps = 0
+p0_bf_mps = 0
+q0_bf_mps = 0
+r0_vf_mps = 0
+phi0_rad = 90 * math.pi/180
+theta0_rad = 0 * math.pi/180
+psi0_rad = 0
+p10_n_m = 0
+p20_n_m = 0
+p30_n_m = 0
 
+x0 = np.array([
+    u0_bf_mps,
+    v0_bf_mps,
+    w0_vf_mps,
+    p0_bf_mps,
+    q0_bf_mps,
+    r0_vf_mps,
+    phi0_rad,
+    theta0_rad,
+    psi0_rad,
+    p10_n_m,
+    p20_n_m,
+    p30_n_m])
 
+# num parameters
+nx0 = x0.size
 
+t0 = 0.0
+tf = 10.0
+h_s = 0.005
 
+# numericl integration
+t = np.arange(t0, tf + h_s, h_s)
+x = np.zeros((nx0, t.size))
 
+x[:, 0] = x0
 
+t, x = numerical_integration_methods.forward_euler(flat_earth_eom.flat_earth_eom, t, x, h_s, amod)
 
+# plot data
 
+fig, axes = plt.subplots(2, 4, figsize=(10, 6))
+fig.set_facecolor('black')
 
+# velocity x
+axes[0,0].plot(t, x[0,:], color='yellow')
+axes[0,0].set_xlabel('Time [s]', color='white')
+axes[0,0].set_ylabel('u [m/s]', color='white')
+axes[0,0].grid(True)
+axes[0,0].set_facecolor('black')
+axes[0,0].tick_params(colors='white')
 
+# velocity y
+axes[0,1].plot(t, x[1,:], color='yellow')
+axes[0,1].set_xlabel('Time [s]', color='white')
+axes[0,1].set_ylabel('v [m/s]', color='white')
+axes[0,1].grid(True)
+axes[0,1].set_facecolor('black')
+axes[0,1].tick_params(colors='white')
 
+# velocity z
+axes[0,2].plot(t, x[2,:], color='yellow')
+axes[0,2].set_xlabel('Time [s]', color='white')
+axes[0,2].set_ylabel('w [m/s]', color='white')
+axes[0,2].grid(True)
+axes[0,2].set_facecolor('black')
+axes[0,2].tick_params(colors='white')
 
+# roll rate
+axes[0,3].plot(t, x[3,:], color='yellow')
+axes[0,3].set_xlabel('Time [s]', color='white')
+axes[0,3].set_ylabel('p [rad/s]', color='white')
+axes[0,3].grid(True)
+axes[0,3].set_facecolor('black')
+axes[0,3].tick_params(colors='white')
 
+# roll angle
+axes[1,0].plot(t, x[6,:], color='yellow')
+axes[1,0].set_xlabel('Time [s]', color='white')
+axes[1,0].set_ylabel('phi [rad]', color='white')
+axes[1,0].grid(True)
+axes[1,0].set_facecolor('black')
+axes[1,0].tick_params(colors='white')
 
+# pitch rate
+axes[1,1].plot(t, x[4,:], color='yellow')
+axes[1,1].set_xlabel('Time [s]', color='white')
+axes[1,1].set_ylabel('q [rad/s]', color='white')
+axes[1,1].grid(True)
+axes[1,1].set_facecolor('black')
+axes[1,1].tick_params(colors='white')
+
+# pitch angle
+axes[1,2].plot(t, x[7,:], color='yellow')
+axes[1,2].set_xlabel('Time [s]', color='white')
+axes[1,2].set_ylabel('theta [rad]', color='white')
+axes[1,2].grid(True)
+axes[1,2].set_facecolor('black')
+axes[1,2].tick_params(colors='white')
+
+# yaw angle
+axes[1,3].plot(t, x[8,:], color='yellow')
+axes[1,3].set_xlabel('Time [s]', color='white')
+axes[1,3].set_ylabel('psi [rad]', color='white')
+axes[1,3].grid(True)
+axes[1,3].set_facecolor('black')
+axes[1,3].tick_params(colors='white')
+
+fig.tight_layout()
+plt.show()
 
