@@ -119,8 +119,24 @@ def flat_earth_eom(t, x, aircraft_model):
              + r_b_rads * math.cos(phi_rad) / math.cos(theta_rad))
 
     # TODO: Position (navigation equations)
-    dx[9] = 0.0
-    dx[10] = 0.0
-    dx[11] = 0.0
+    # Just use velocity measurements, rotate from body -> NED (123)
+    c_theta = math.cos(theta_rad)
+    s_theta = math.sin(theta_rad)
+    c_phi = math.cos(phi_rad)
+    s_phi = math.sin(phi_rad)
+    c_psi = math.cos(psi_rad)
+    s_psy = math.sin(psi_rad)
+
+    dx[9] = (c_theta * c_phi * u_b_ms
+             + (-c_phi * s_psi + s_phi * s_theta * c_psi) * v_b_ms
+             + (s_phi * s_psi + c_phi * s_theta * c_psi) * w_b_ms)
+
+    dx[10] = (c_phi * s_psi * u_b_ms
+              + (c_phi * c_psi + s_phi * s_theta * s_psi) * v_b_ms
+              + (-s_phi * c_psi + c_phi * s_theta * s+psi) * w_b_ms)
+
+    dx[11] = (-s_theta * u_b_ms 
+              + s_phi * c_theta * v_b_ms
+              + c_phi * c_theta * w_b_ms)
 
     return dx
